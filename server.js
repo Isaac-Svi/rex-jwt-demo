@@ -1,34 +1,40 @@
 require('dotenv').config();
 const express = require('express');
+const user = require('./models/user.model');
+const { TokenProcessor } = require('rex-jwt-middleware');
 
-const { PORT } = process.env;
+// config
+const { PORT, REFRESH_TOKEN_SECRET, ACCESS_TOKEN_SECRET } = process.env;
+
+// database connection
+require('./config/db')();
 
 const app = express();
 
+// middleware
 app.use(express.json());
-// app.use((req, res, next) => {
-//     let body = '';
+app.use(
+    new TokenProcessor({
+        refreshToken: {
+            secret: REFRESH_TOKEN_SECRET,
+            exp: 20 * 60, // Number of seconds from epoch
+            route: '/refresh',
+            cookieName: 'rex',
+        },
+        accessToken: {
+            secret: ACCESS_TOKEN_SECRET,
+            exp: 20,
+        },
+    })
+);
 
-//     const converter = {
-//         'application/json': JSON.parse,
-//         'application/x-www-form-urlencoded': (body) => {
-//             return Object.fromEntries(body.split('&').map((x) => x.split('=')));
-//         },
-//     }[req.headers['content-type']];
+app.post('/register', user.register);
+app.post('/login', user.fields(['email', 'username']), user.login);
+app.post('/logout', user.logout);
+app.post('/refresh', user.fields(['email', 'username']), user.refresh);
 
-//     req.on('data', (data) => {
-//         body += data.toString();
-//     });
-
-//     req.on('end', () => {
-//         req.body = converter ? converter(body) : body;
-//         next();
-//     });
-// });
-
-app.post('/post', (req, res) => {
-    console.log(req.body);
-    res.send(req.body);
+app.get('/secret', user.protect, (req, res) => {
+    res.send('secret');
 });
 
 app.listen(PORT, () => {
